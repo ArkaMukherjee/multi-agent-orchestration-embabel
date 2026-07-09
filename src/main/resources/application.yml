@@ -1,0 +1,23 @@
+spring:
+  application:
+    name: embabel-trip-planner
+
+# Embabel's Ollama starter queries the local Ollama server at startup and
+# registers every installed model. Names include the tag (e.g. "llama3.2:latest").
+# Pull the model first:  ollama pull llama3.2
+embabel:
+  agent:
+    platform:
+      models:
+        ollama:
+          base-url: http://localhost:11434
+  models:
+    default-llm: llama3.1:8b
+
+server:
+  port: 8082
+
+logging:
+  level:
+    com.embabel: INFO
+    com.example.tripplanner: DEBUG
