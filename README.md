@@ -93,6 +93,24 @@ java -jar target/embabel-trip-planner-1.0.0.jar
 
 The app starts on `http://localhost:8082`.
 
+## Run with Docker
+
+```bash
+docker build -t embabel-trip-planner:1.0.0 .
+docker run --rm -p 8082:8082 embabel-trip-planner:1.0.0
+```
+
+The image points Embabel at `http://host.docker.internal:11434`, so it reaches
+the Ollama server running on your host out of the box with Docker Desktop
+(Windows/macOS). On plain Linux add `--add-host=host.docker.internal:host-gateway`,
+or point at any other Ollama instance:
+
+```bash
+docker run --rm -p 8082:8082 \
+  -e EMBABEL_AGENT_PLATFORM_MODELS_OLLAMA_BASE_URL=http://my-ollama-host:11434 \
+  embabel-trip-planner:1.0.0
+```
+
 ## Try it
 
 ```bash

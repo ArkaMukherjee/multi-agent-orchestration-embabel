@@ -14,7 +14,11 @@ mvn spring-boot:run        # run (starts on http://localhost:8082)
 mvn test                   # run unit tests + generate JaCoCo report (target/site/jacoco/index.html)
 mvn test -Dtest=ClassName  # run a single test class
 mvn verify                 # tests + 80% instruction-coverage gate (JaCoCo check) + package
+docker build -t embabel-trip-planner:1.0.0 .   # multi-stage image (skips tests)
+docker run --rm -p 8082:8082 embabel-trip-planner:1.0.0
 ```
+
+The Docker image defaults Embabel's Ollama URL to `http://host.docker.internal:11434` (a container's `localhost` is not the host); override with the `EMBABEL_AGENT_PLATFORM_MODELS_OLLAMA_BASE_URL` env var.
 
 Running live requires a local [Ollama](https://ollama.com) server on `http://localhost:11434` with the configured model pulled (`ollama pull llama3.1:8b`) — no API key needed. Model selection lives in `src/main/resources/application.yml` (`embabel.models.default-llm`, currently `llama3.1:8b`). Embabel registers models under the exact name Ollama reports, **including the tag** — `llama3.2` fails with "Default LLM not found" while `llama3.2:latest` works. Model discovery comes from the `embabel-agent-starter-ollama` dependency; without a provider starter, Embabel has zero models ("available models: []" at startup).
 
