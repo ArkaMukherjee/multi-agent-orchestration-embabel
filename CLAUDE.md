@@ -9,18 +9,19 @@ A minimal demo of multi-agent orchestration on the JVM using [Embabel](https://g
 ## Commands
 
 ```bash
-mvn clean package          # build
-mvn spring-boot:run        # run (starts on http://localhost:8080)
-mvn test                   # run tests (spring-boot-starter-test is on the classpath; no tests exist yet)
+mvn clean package          # build (fails if a running app instance locks target/*.jar — stop it first)
+mvn spring-boot:run        # run (starts on http://localhost:8082)
+mvn test                   # run unit tests + generate JaCoCo report (target/site/jacoco/index.html)
 mvn test -Dtest=ClassName  # run a single test class
+mvn verify                 # tests + 80% instruction-coverage gate (JaCoCo check) + package
 ```
 
-Running live requires a local [Ollama](https://ollama.com) server on `http://localhost:11434` with the model pulled (`ollama pull llama3.2`) — no API key needed. Model selection lives in `src/main/resources/application.yml` (`embabel.models.default-llm`, default `llama3.2`); the Spring AI Ollama starter is pinned to the same Spring AI version (1.1.5) the Embabel starter pulls transitively.
+Running live requires a local [Ollama](https://ollama.com) server on `http://localhost:11434` with the configured model pulled (`ollama pull llama3.1:8b`) — no API key needed. Model selection lives in `src/main/resources/application.yml` (`embabel.models.default-llm`, currently `llama3.1:8b`). Embabel registers models under the exact name Ollama reports, **including the tag** — `llama3.2` fails with "Default LLM not found" while `llama3.2:latest` works. Model discovery comes from the `embabel-agent-starter-ollama` dependency; without a provider starter, Embabel has zero models ("available models: []" at startup).
 
-Exercise the flow:
+Exercise the flow (LLM calls to a local model can take minutes):
 
 ```bash
-curl -X POST http://localhost:8080/api/trips/plan \
+curl -X POST http://localhost:8082/api/trips/plan \
   -H "Content-Type: application/json" \
   -d '{"destination": "Kyoto, Japan", "days": 4, "budgetUsd": 2500, "interests": "temples, food, gardens"}'
 ```
@@ -42,7 +43,13 @@ The entire point of this codebase is that **orchestration is implicit** — ther
 
 Implications for changes:
 - Adding a new step to the flow means adding an `@Action` whose parameter/return types slot into the dependency graph — not editing any pipeline code.
-- Changing a domain record's shape changes the orchestration graph; the planner matches on exact types.
-- Swapping LLM provider (OpenAI ↔ Anthropic ↔ Ollama) is config-only via `application.yml`; agent code goes through `withDefaultLlm()`.
+- Changing a domain type's shape changes the orchestration graph; the planner matches on exact types.
+- Swapping LLM provider means swapping the Embabel provider starter in `pom.xml` (e.g. `embabel-agent-starter-openai` instead of `embabel-agent-starter-ollama`) plus its config in `application.yml`; agent code goes through `withDefaultLlm()` and never changes. Spring AI's own model starters do NOT work here — Embabel only sees models registered as its own `Llm` beans by a provider starter.
 
-Note: `config/AgentsConfig.java` is an empty file (no code at all) and `README.md`'s project-layout tree omits it — it can be ignored or deleted.
+## Testing
+
+Unit tests (`src/test/java/...`) mock the Embabel interfaces (`OperationContext` → `Ai` → `PromptRunner`) so no Ollama server is needed. `domain/LlmJsonBindingTest` is the regression suite for the duplicate-key/POJO decision above — keep it passing when touching domain types. The controller test injects a mock `TypedOps` via `ReflectionTestUtils` because the controller builds its facade internally. JaCoCo enforces 80% instruction coverage at `verify`; the Spring Boot bootstrap class and Mockito-generated classes are excluded (the latter carry the running JDK's bytecode version, which JaCoCo's ASM may not support — that's why the `prepare-agent` execution has `*MockitoMock*` excluded).
+
+Notes:
+- Startup logs show `MISSING_GOALS` validation errors for `BudgetPlanningAgent`/`DestinationResearchAgent` — harmless by design; only `ItineraryAgent` carries `@AchievesGoal`.
+- `config/AgentsConfig.java` is an empty file (no code at all) — it can be ignored or deleted.

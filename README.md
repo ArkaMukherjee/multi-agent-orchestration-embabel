@@ -44,7 +44,7 @@ The planner composes the actions that bridge input → goal and executes them.
 
 ## Requirements
 
-- **Java 21+** (this project targets 21; tested toolchains: JDK 21–24)
+- **Java 21+** (this project targets 21; tested toolchains: JDK 21–26)
 - **Maven 3.9+**
 - **Embabel 0.4.0**, **Spring Boot 3.5.x** (declared in `pom.xml`)
 - A local **[Ollama](https://ollama.com)** server to run live (no API key needed)
@@ -53,19 +53,35 @@ The planner composes the actions that bridge input → goal and executes them.
 
 ```bash
 # Install Ollama (https://ollama.com/download), then pull the model:
-ollama pull llama3.2
+ollama pull llama3.1:8b
 # Make sure the server is running (default http://localhost:11434):
 ollama serve
 ```
 
-Model and temperature are set in `src/main/resources/application.yml`
-(default `llama3.2`, served locally by Ollama).
+The model is set in `src/main/resources/application.yml` under
+`embabel.models.default-llm` (currently `llama3.1:8b`). Any model pulled into
+Ollama can be used — Embabel discovers them all at startup. Note that model
+names must match what Ollama reports **including the tag**: use
+`llama3.2:latest`, not `llama3.2`.
+
+Heads-up: small local models are slow and occasionally sloppy at strict JSON;
+a full plan can take several minutes while Embabel retries malformed responses.
+Larger models (e.g. `qwen3`, `mistral`) are noticeably more reliable.
 
 ## Build
 
 ```bash
 mvn clean package
 ```
+
+## Test
+
+```bash
+mvn test     # unit tests + JaCoCo coverage report (target/site/jacoco/index.html)
+mvn verify   # additionally enforces the 80% instruction-coverage gate
+```
+
+The tests mock Embabel's LLM interfaces, so they run without an Ollama server.
 
 ## Run
 
@@ -75,12 +91,12 @@ mvn spring-boot:run
 java -jar target/embabel-trip-planner-1.0.0.jar
 ```
 
-The app starts on `http://localhost:8080`.
+The app starts on `http://localhost:8082`.
 
 ## Try it
 
 ```bash
-curl -X POST http://localhost:8080/api/trips/plan \
+curl -X POST http://localhost:8082/api/trips/plan \
   -H "Content-Type: application/json" \
   -d '{
         "destination": "Kyoto, Japan",
@@ -99,23 +115,28 @@ assembled by the three cooperating agents.
 embabel-trip-planner/
 ├── pom.xml
 ├── README.md
-└── src/main/
-    ├── java/com/example/tripplanner/
-    │   ├── TripPlannerApplication.java        # @SpringBootApplication @EnableAgents
-    │   ├── agents/
-    │   │   ├── DestinationResearchAgent.java   # @Agent  -> DestinationResearch
-    │   │   ├── BudgetPlanningAgent.java         # @Agent  -> BudgetBreakdown
-    │   │   └── ItineraryAgent.java              # @Agent  -> TripPlan (@AchievesGoal)
-    │   ├── domain/                              # types passed between agents
-    │   │   ├── TravelRequest.java
-    │   │   ├── DestinationResearch.java
-    │   │   ├── BudgetBreakdown.java
-    │   │   ├── DayPlan.java
-    │   │   └── TripPlan.java
-    │   └── web/
-    │       └── TripPlannerController.java       # asks platform for TripPlan
-    └── resources/
-        └── application.yml
+└── src/
+    ├── main/
+    │   ├── java/com/example/tripplanner/
+    │   │   ├── TripPlannerApplication.java      # @SpringBootApplication @EnableAgents
+    │   │   ├── agents/
+    │   │   │   ├── DestinationResearchAgent.java # @Agent  -> DestinationResearch
+    │   │   │   ├── BudgetPlanningAgent.java      # @Agent  -> BudgetBreakdown
+    │   │   │   └── ItineraryAgent.java           # @Agent  -> TripPlan (@AchievesGoal)
+    │   │   ├── domain/                           # types passed between agents
+    │   │   │   ├── TravelRequest.java            # record (HTTP input)
+    │   │   │   ├── DestinationResearch.java      # POJOs (LLM output — tolerate
+    │   │   │   ├── BudgetBreakdown.java          #   duplicate JSON keys from
+    │   │   │   ├── DayPlan.java                  #   small local models)
+    │   │   │   └── TripPlan.java
+    │   │   └── web/
+    │   │       └── TripPlannerController.java    # asks platform for TripPlan
+    │   └── resources/
+    │       └── application.yml
+    └── test/java/com/example/tripplanner/
+        ├── agents/                               # agent tests w/ mocked LLM chain
+        ├── domain/                               # state + LLM-JSON binding tests
+        └── web/                                  # controller delegation test
 ```
 
 ## Key ideas to take away
@@ -126,8 +147,11 @@ embabel-trip-planner/
   its return type is its effect — the planner chains actions by matching them.
 - **The goal is a type.** `@AchievesGoal` marks the terminal action; callers ask
   for the output type and stay ignorant of the steps.
-- **Swappable LLM.** `context.ai().withDefaultLlm().createObject(prompt, T.class)`
-  goes through Spring AI, so switching OpenAI ↔ Anthropic ↔ Ollama is config-only.
+- **Swappable LLM.** Agent code only ever calls
+  `context.ai().withDefaultLlm().createObject(prompt, T.class)`. Switching
+  OpenAI ↔ Anthropic ↔ Ollama means swapping the Embabel provider starter in
+  `pom.xml` (this project uses `embabel-agent-starter-ollama`) and adjusting
+  `application.yml` — the agents never change.
 
 ## References
 
