@@ -33,7 +33,7 @@ on:
 env:
   AWS_REGION: ap-south-1                   # set this to your preferred AWS region, e.g. us-west-1
   ECR_REPOSITORY: arkamukherjee/practicerepo           # set this to your Amazon ECR repository name
-  ECS_SERVICE: trip-planner-task-service-n6b7s5rm                 # set this to your Amazon ECS service name
+  ECS_SERVICE: trip-planner-task-service-bqicq456                 # set this to your Amazon ECS service name
   ECS_CLUSTER: practice-cluster                 # set this to your Amazon ECS cluster name
   ECS_TASK_DEFINITION: .aws/task-definition.json # set this to the path to your Amazon ECS task definition
                                                # file, e.g. .aws/task-definition.json
